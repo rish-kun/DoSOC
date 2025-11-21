@@ -21,7 +21,7 @@ tokenizer.padding_side = "right"
 
 # ---- Dataset ----
 dataset = load_dataset("json", data_files=TRAIN_FILE, split="train")
-data = dataset.select(range(50000))
+data = dataset.select(range(20000))
 
 # ---- CRITICAL FIX: Pre-tokenize the dataset using all CPU cores ----
 

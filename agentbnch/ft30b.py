@@ -20,7 +20,7 @@ tokenizer.padding_side = "right"
 # ---- Dataset ----
 # Each row should look like: {"messages": [{"role": "...", "content": "..."}, ...]}
 dataset = load_dataset("json", data_files=TRAIN_FILE, split="train")
-
+data = dataset.select(range(100000))
 # Optionally shuffle or subsample if you’re just testing
 # dataset = dataset.shuffle(seed=42).select(range(10000))
 
@@ -47,22 +47,31 @@ peft_config = LoraConfig(
 training_args = SFTConfig(
     output_dir=OUTPUT_DIR,
     num_train_epochs=1,                  # increase after everything works
+
     per_device_train_batch_size=4,
-    gradient_accumulation_steps=16,       # effective batch size = 64
-    learning_rate=2e-4,                  # higher LR is typical for LoRA
+    gradient_accumulation_steps=8,       # effective batch size = 64
+
+    gradient_checkpointing=True,         # reduces memory usage
+    learning_rate=2e-4,                  # highuse_cache=Falseer LR is typical for LoRA
     logging_steps=10,
     save_steps=500,
     save_total_limit=3,
     bf16=True,                           # H100 supports bfloat16 very well
-    gradient_checkpointing=True,         # reduces memory usage
     max_length=2048,                     # increase later if you can afford it
+
+
     dataloader_num_workers=16,  # Use your 24 vCPUs to pre-process data fast
     dataloader_pin_memory=True,  # Faster transfer to VRAM
+    dataloader_pin_memory=True,      # Faster transfer to GPU
+
     # pack multiple examples per sequence for throughput
     packing=True,
     report_to="none",
     dataset_num_proc=22
     # or "wandb" / "tensorboard"
+
+    # Disable compile for now as it can cause the "startup lag" you saw earlier
+    torch_compile=False
 )
 
 # ---- Load base model on H200 ----
@@ -70,9 +79,9 @@ training_args = SFTConfig(
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
     dtype=torch.bfloat16,
-    # Required for packing to work properly
     attn_implementation="flash_attention_2",
-    device_map="auto",                   # puts model on the available GPU(s)
+    device_map="cuda",
+    use_cache=False,
 )
 
 # ---- SFTTrainer with LoRA ----

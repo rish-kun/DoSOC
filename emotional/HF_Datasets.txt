@@ -1,0 +1,6 @@
+suayptalha/Psychological-Support
+wassimm/psychology_dataset_10k_with-prompts
+samhog/psychology-10k
+jkhedri/psychology-dataset
+dair-ai/emotion
+rubrix/go_emotions_training

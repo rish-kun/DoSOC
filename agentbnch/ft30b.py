@@ -6,7 +6,7 @@ from peft import LoraConfig
 
 # ---- Config ----
 # change if you use a different Qwen3-30B variant
-MODEL_NAME = "Qwen/Qwen3-30B-Instruct"
+MODEL_NAME = "Qwen/Qwen3-30B-A3B-Instruct-2507"
 TRAIN_FILE = "toucan_qwen_formatted.jsonl"
 OUTPUT_DIR = "qwen3-30b-toucan-lora"
 

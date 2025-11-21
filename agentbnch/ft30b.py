@@ -60,9 +60,8 @@ training_args = SFTConfig(
     max_length=2048,                     # increase later if you can afford it
 
 
-    dataloader_num_workers=16,  # Use your 24 vCPUs to pre-process data fast
+    dataloader_num_workers=22,  # Use your 24 vCPUs to pre-process data fast
     dataloader_pin_memory=True,  # Faster transfer to VRAM
-    dataloader_pin_memory=True,      # Faster transfer to GPU
 
     # pack multiple examples per sequence for throughput
     packing=True,

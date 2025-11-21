@@ -55,7 +55,7 @@ training_args = SFTConfig(
     save_total_limit=3,
     bf16=True,                           # H100 supports bfloat16 very well
     gradient_checkpointing=True,         # reduces memory usage
-    max_seq_length=2048,                 # increase later if you can afford it
+    max_length=2048,                     # increase later if you can afford it
     # pack multiple examples per sequence for throughput
     packing=True,
     dataset_num_proc=4,

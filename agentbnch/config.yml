@@ -1,0 +1,17 @@
+# configs/agents/openai-chat.yaml
+
+openai_chat:
+  # If you use env vars, you can keep this empty or as a placeholder.
+  api_key: "${OPENAI_API_KEY}"   # or just "ollama" if you prefer
+  # Optional: only if your version of AgentBench / client supports it.
+  base_url: "http://localhost:11434/v1"
+
+  # Model name must match the Ollama model id
+  model: "qwen3:30b"
+
+  # Usual generation params – keep close to the default gpt-3.5 config
+  temperature: 0.2
+  max_tokens: 1024
+  top_p: 1.0
+  frequency_penalty: 0.0
+  presence_penalty: 0.0

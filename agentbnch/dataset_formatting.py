@@ -69,7 +69,8 @@ def main():
 
     print(f"Loading {DATASET_NAME}...")
     # Use streaming=True if you don't want to download the whole dataset at once
-    dataset = load_dataset(DATASET_NAME, split="train")
+    dataset = load_dataset(DATASET_NAME, 'Kimi-K2',
+                           split="train")
 
     print("Formatting dataset (this may take a while)...")
     # Apply the formatting function

@@ -4,6 +4,7 @@ sudo apt install zsh -y
 sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)"
 
 sudo apt install python3
+
 sudo apt install python3-pip
 sudo apt install git
 sudo apt install neovim
@@ -38,15 +39,9 @@ ollama serve
 
 ollama run qwen3:30b
 
-curl http://localhost:11434/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "qwen3:30b",
-    "messages": [
-      {"role": "system", "content": "You are a helpful assistant."},
-      {"role": "user", "content": "Say hi from Qwen3."}
-    ]
-  }'
+
+
+
 
 
 

@@ -67,7 +67,7 @@ training_args = SFTConfig(
     # pack multiple examples per sequence for throughput
     packing=True,
     report_to="none",
-    dataset_num_proc=22
+    dataset_num_proc=22,
     # or "wandb" / "tensorboard"
 
     # Disable compile for now as it can cause the "startup lag" you saw earlier

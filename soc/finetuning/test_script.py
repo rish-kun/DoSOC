@@ -6,11 +6,10 @@ from transformers import (
     AutoTokenizer,
     BitsAndBytesConfig,
     HfArgumentParser,
-    TrainingArguments,
     pipeline, logging
 )
 from peft import LoraConfig, PeftModel
-from trl import SFTTrainer
+from trl import SFTTrainer, SFTConfig
 
 
 model_name = "NousResearch/Llama-2-7b-chat-hf"
@@ -89,7 +88,8 @@ model.config.pretrained_tp = 1
 
 
 # Load Llama tokenizer
-tokenizer = AutoTokenizer.from_pretrained(model=model, trust_remote_code=True)
+tokenizer = AutoTokenizer.from_pretrained(
+    model_name, trust_remote_code=True)
 tokenizer.pad_token = tokenizer.eos_token
 tokenizer.padding_side = "right"
 
@@ -104,11 +104,12 @@ peft_config = LoraConfig(
 )
 
 # Set training parameters
-training_arguments = TrainingArguments(
+training_arguments = SFTConfig(
     output_dir=output_dir,
     num_train_epochs=epochs,
     per_device_train_batch_size=batch_per_gpu,
     gradient_accumulation_steps=gradient_accumulation_steps,
+    gradient_checkpointing=gradient_checkpointing,
     optim=optim,
     save_steps=save_steps,
     logging_steps=logging_steps,
@@ -121,7 +122,9 @@ training_arguments = TrainingArguments(
     warmup_ratio=warmup_ratio,
     group_by_length=group_by_length,
     lr_scheduler_type=lr_scheduler_type,
-    report_to="tensorboard"
+    report_to="tensorboard",
+    max_length=512 if max_seg_length is None else max_seg_length,
+    packing=packing,
 )
 
 # Set supervised fine-tuning parameters
@@ -129,14 +132,11 @@ trainer = SFTTrainer(
     model=model,
     train_dataset=dataset,
     peft_config=peft_config,
-    dataset_text_field="text",
-    max_seq_length=max_seg_length,
-    tokenizer=tokenizer,
+    processing_class=tokenizer,
     args=training_arguments,
-    packing=packing,
 )
 trainer.train()
 
 
 # Save trained model
-trainer.model.save_pretrained(new_model)
+trainer.save_model(new_model)

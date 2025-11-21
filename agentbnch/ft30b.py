@@ -60,7 +60,9 @@ training_args = SFTConfig(
     dataloader_pin_memory=True,  # Faster transfer to VRAM
     # pack multiple examples per sequence for throughput
     packing=True,
-    report_to="none",                    # or "wandb" / "tensorboard"
+    report_to="none",
+    dataset_num_proc=22
+    # or "wandb" / "tensorboard"
 )
 
 # ---- Load base model on H200 ----
@@ -83,7 +85,6 @@ trainer = SFTTrainer(
     peft_config=peft_config,             # this wraps the model with PEFT LoRA
     processing_class=tokenizer,
     # ---- ADD THIS LINE ----
-    dataset_num_proc=22
     # No formatting_func needed because we already have `messages`
 )
 

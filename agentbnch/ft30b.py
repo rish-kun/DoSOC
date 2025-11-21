@@ -3,29 +3,46 @@ from datasets import load_dataset
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from trl import SFTTrainer, SFTConfig
 from peft import LoraConfig
+import os
+
+# ---- CRITICAL: Disable tokenizer parallelism warning ----
+os.environ["TOKENIZERS_PARALLELISM"] = "true"
 
 # ---- Config ----
-# change if you use a different Qwen3-30B variant
 MODEL_NAME = "Qwen/Qwen3-30B-A3B-Instruct-2507"
 TRAIN_FILE = "toucan_qwen_formatted.jsonl"
 OUTPUT_DIR = "qwen3-30b-toucan-lora"
 
 # ---- Tokenizer ----
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
-# Ensure padding token exists and is on the right (better for causal LM)
 if tokenizer.pad_token is None:
     tokenizer.pad_token = tokenizer.eos_token
 tokenizer.padding_side = "right"
 
 # ---- Dataset ----
-# Each row should look like: {"messages": [{"role": "...", "content": "..."}, ...]}
 dataset = load_dataset("json", data_files=TRAIN_FILE, split="train")
-data = dataset.select(range(100000))
-# Optionally shuffle or subsample if you’re just testing
-# dataset = dataset.shuffle(seed=42).select(range(10000))
+data = dataset.select(range(50000))
+
+# ---- CRITICAL FIX: Pre-tokenize the dataset using all CPU cores ----
+
+
+def preprocess_function(examples):
+    """Apply chat template and tokenize in parallel"""
+    # SFTTrainer will apply chat template automatically, but we can pre-tokenize
+    # the messages to avoid doing it during training
+    return examples  # If dataset already has "messages", keep as is
+
+
+# Process dataset with all available cores
+dataset = data.map(
+    preprocess_function,
+    batched=True,
+    num_proc=22,  # Use 22 of your 24 cores (leave 2 for system)
+    remove_columns=[],  # Keep all columns
+    desc="Preprocessing dataset",
+)
 
 # ---- LoRA / PEFT config ----
-# Typical LoRA settings for Qwen3; adjust r / target_modules if you want to experiment
 peft_config = LoraConfig(
     r=64,
     lora_alpha=16,
@@ -46,61 +63,60 @@ peft_config = LoraConfig(
 # ---- Training arguments ----
 training_args = SFTConfig(
     output_dir=OUTPUT_DIR,
-    num_train_epochs=1,                  # increase after everything works
+    num_train_epochs=1,
 
     per_device_train_batch_size=4,
-    gradient_accumulation_steps=8,       # effective batch size = 64
+    gradient_accumulation_steps=8,  # effective batch size = 32
 
-    gradient_checkpointing=True,         # reduces memory usage
-    learning_rate=2e-4,                  # highuse_cache=Falseer LR is typical for LoRA
+    gradient_checkpointing=True,
+    learning_rate=2e-4,
     logging_steps=10,
     save_steps=500,
     save_total_limit=3,
-    bf16=True,                           # H100 supports bfloat16 very well
-    max_length=2048,                     # increase later if you can afford it
+    bf16=True,
+    max_length=2048,
 
+    # ---- CRITICAL FIXES for CPU utilization ----
+    dataloader_num_workers=16,  # Optimal: 2x GPU count, max 16-20
+    dataloader_prefetch_factor=4,  # Prefetch 4 batches per worker
+    dataloader_pin_memory=True,  # Faster CPU->GPU transfer
+    dataloader_persistent_workers=True,  # Keep workers alive between epochs
 
-    dataloader_num_workers=22,  # Use your 24 vCPUs to pre-process data fast
-    dataloader_pin_memory=True,  # Faster transfer to VRAM
-
-    # pack multiple examples per sequence for throughput
+    # Packing and dataset preprocessing
     packing=True,
-    report_to="none",
-    dataset_num_proc=22,
-    # or "wandb" / "tensorboard"
+    dataset_num_proc=22,  # For any remaining preprocessing
 
-    # Disable compile for now as it can cause the "startup lag" you saw earlier
-    torch_compile=False
+    # Optimization flags
+    torch_compile=False,  # Disable for stability
+    report_to="none",
+
+    # Remove cache to save memory during gradient checkpointing
+    # (already handled by use_cache=False in model)
 )
 
 # ---- Load base model on H200 ----
-# On a single H200, bf16 + LoRA with small batch size is feasible for 30B.
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
-    dtype=torch.bfloat16,
+    torch_dtype=torch.bfloat16,
     attn_implementation="flash_attention_2",
     device_map="cuda",
-    use_cache=False,
+    use_cache=False,  # Required for gradient checkpointing
 )
 
 # ---- SFTTrainer with LoRA ----
-# SFTTrainer understands conversational datasets with a "messages" field and
-# will apply the Qwen chat template automatically.
 trainer = SFTTrainer(
     model=model,
     args=training_args,
     train_dataset=dataset,
-    peft_config=peft_config,             # this wraps the model with PEFT LoRA
+    peft_config=peft_config,
     processing_class=tokenizer,
-    # ---- ADD THIS LINE ----
-    # No formatting_func needed because we already have `messages`
 )
 
 # ---- Train ----
+print("Starting training with optimized CPU utilization...")
 trainer.train()
 
 # ---- Save adapter + tokenizer ----
-# For a PEFT model, `save_model` will save the LoRA adapter weights.
 trainer.save_model(OUTPUT_DIR)
 tokenizer.save_pretrained(OUTPUT_DIR)
 

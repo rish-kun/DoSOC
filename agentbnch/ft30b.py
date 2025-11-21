@@ -1,0 +1,94 @@
+import torch
+from datasets import load_dataset
+from transformers import AutoTokenizer, AutoModelForCausalLM
+from trl import SFTTrainer, SFTConfig
+from peft import LoraConfig
+
+# ---- Config ----
+# change if you use a different Qwen3-30B variant
+MODEL_NAME = "Qwen/Qwen3-30B-Instruct"
+TRAIN_FILE = "toucan_qwen_formatted.jsonl"
+OUTPUT_DIR = "qwen3-30b-toucan-lora"
+
+# ---- Tokenizer ----
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, use_fast=True)
+# Ensure padding token exists and is on the right (better for causal LM)
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+tokenizer.padding_side = "right"
+
+# ---- Dataset ----
+# Each row should look like: {"messages": [{"role": "...", "content": "..."}, ...]}
+dataset = load_dataset("json", data_files=TRAIN_FILE, split="train")
+
+# Optionally shuffle or subsample if you’re just testing
+# dataset = dataset.shuffle(seed=42).select(range(10000))
+
+# ---- LoRA / PEFT config ----
+# Typical LoRA settings for Qwen3; adjust r / target_modules if you want to experiment
+peft_config = LoraConfig(
+    r=64,
+    lora_alpha=16,
+    lora_dropout=0.05,
+    bias="none",
+    task_type="CAUSAL_LM",
+    target_modules=[
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj",
+    ],
+)
+
+# ---- Training arguments ----
+training_args = SFTConfig(
+    output_dir=OUTPUT_DIR,
+    num_train_epochs=1,                  # increase after everything works
+    per_device_train_batch_size=1,
+    gradient_accumulation_steps=8,       # effective batch size = 8
+    learning_rate=2e-4,                  # higher LR is typical for LoRA
+    logging_steps=10,
+    save_steps=500,
+    save_total_limit=3,
+    bf16=True,                           # H100 supports bfloat16 very well
+    gradient_checkpointing=True,         # reduces memory usage
+    max_seq_length=2048,                 # increase later if you can afford it
+    # pack multiple examples per sequence for throughput
+    packing=True,
+    dataset_num_proc=4,
+    report_to="none",                    # or "wandb" / "tensorboard"
+    eos_token="<|im_end|>",              # Qwen chat EOS token
+)
+
+# ---- Load base model on H100 ----
+# On a single H100 80GB, bf16 + LoRA with small batch size is feasible for 30B.
+model = AutoModelForCausalLM.from_pretrained(
+    MODEL_NAME,
+    torch_dtype=torch.bfloat16,
+    device_map="auto",                   # puts model on the available GPU(s)
+)
+
+# ---- SFTTrainer with LoRA ----
+# SFTTrainer understands conversational datasets with a "messages" field and
+# will apply the Qwen chat template automatically.
+trainer = SFTTrainer(
+    model=model,
+    args=training_args,
+    train_dataset=dataset,
+    peft_config=peft_config,             # this wraps the model with PEFT LoRA
+    processing_class=tokenizer,
+    # No formatting_func needed because we already have `messages`
+)
+
+# ---- Train ----
+trainer.train()
+
+# ---- Save adapter + tokenizer ----
+# For a PEFT model, `save_model` will save the LoRA adapter weights.
+trainer.save_model(OUTPUT_DIR)
+tokenizer.save_pretrained(OUTPUT_DIR)
+
+print("Training complete. LoRA adapter + tokenizer saved to:", OUTPUT_DIR)

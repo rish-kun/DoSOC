@@ -58,16 +58,16 @@ training_args = SFTConfig(
     max_length=2048,                     # increase later if you can afford it
     # pack multiple examples per sequence for throughput
     packing=True,
-    dataset_num_proc=4,
     report_to="none",                    # or "wandb" / "tensorboard"
-    eos_token="<|im_end|>",              # Qwen chat EOS token
 )
 
-# ---- Load base model on H100 ----
-# On a single H100 80GB, bf16 + LoRA with small batch size is feasible for 30B.
+# ---- Load base model on H200 ----
+# On a single H200, bf16 + LoRA with small batch size is feasible for 30B.
 model = AutoModelForCausalLM.from_pretrained(
     MODEL_NAME,
-    torch_dtype=torch.bfloat16,
+    dtype=torch.bfloat16,
+    # Required for packing to work properly
+    attn_implementation="flash_attention_2",
     device_map="auto",                   # puts model on the available GPU(s)
 )
 

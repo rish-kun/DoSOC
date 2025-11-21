@@ -48,7 +48,7 @@ training_args = SFTConfig(
     output_dir=OUTPUT_DIR,
     num_train_epochs=1,                  # increase after everything works
     per_device_train_batch_size=8,
-    gradient_accumulation_steps=16,       # effective batch size = 64
+    gradient_accumulation_steps=8,       # effective batch size = 64
     learning_rate=2e-4,                  # higher LR is typical for LoRA
     logging_steps=10,
     save_steps=500,

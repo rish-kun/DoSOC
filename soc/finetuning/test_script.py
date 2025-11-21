@@ -8,7 +8,7 @@ from transformers import (
     HfArgumentParser,
     pipeline, logging
 )
-from peft import LoraConfig, PeftModel
+from peft import LoraConfig, PeftModel, prepare_model_for_kbit_training
 from trl import SFTTrainer, SFTConfig
 
 
@@ -27,7 +27,7 @@ nested_quantisation = False
 output_dir = "./results"
 epochs = 1
 fp16 = False
-bf16 = False
+bf16 = True
 
 
 batch_per_gpu = 4
@@ -67,12 +67,12 @@ packing = False
 device_map = {"": 0}
 
 
-compute_dtype = getattr(torch, "float16")
+compute_dtype = getattr(torch, "bfloat16")
 bnb_config = BitsAndBytesConfig(
     load_in_4bit=use_4bit,
     bnb_4bit_quant_type=quantization_type,
     bnb_4bit_compute_dtype=compute_dtype,
-    nested_quantisation=nested_quantisation,
+    bnb_4bit_use_double_quant=True,
 )
 
 dataset = load_dataset(dataset_name, split="train")
@@ -85,6 +85,10 @@ model = AutoModelForCausalLM.from_pretrained(
 
 model.config.use_cache = False
 model.config.pretrained_tp = 1
+
+# Prepare model for k-bit training
+model = prepare_model_for_kbit_training(
+    model, use_gradient_checkpointing=gradient_checkpointing)
 
 
 # Load Llama tokenizer

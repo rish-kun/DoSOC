@@ -47,8 +47,8 @@ peft_config = LoraConfig(
 training_args = SFTConfig(
     output_dir=OUTPUT_DIR,
     num_train_epochs=1,                  # increase after everything works
-    per_device_train_batch_size=4,
-    gradient_accumulation_steps=16,       # effective batch size = 8
+    per_device_train_batch_size=8,
+    gradient_accumulation_steps=16,       # effective batch size = 64
     learning_rate=2e-4,                  # higher LR is typical for LoRA
     logging_steps=10,
     save_steps=500,
@@ -56,6 +56,8 @@ training_args = SFTConfig(
     bf16=True,                           # H100 supports bfloat16 very well
     gradient_checkpointing=True,         # reduces memory usage
     max_length=2048,                     # increase later if you can afford it
+    dataloader_num_workers=16,  # Use your 24 vCPUs to pre-process data fast
+    dataloader_pin_memory=True,  # Faster transfer to VRAM
     # pack multiple examples per sequence for throughput
     packing=True,
     report_to="none",                    # or "wandb" / "tensorboard"
